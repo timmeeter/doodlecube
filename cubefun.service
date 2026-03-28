@@ -1,0 +1,13 @@
+[Unit]
+Description=Cube Fun HTTP server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/exedev/cubefun
+ExecStart=/usr/bin/busybox httpd -f -p 8000 -h /home/exedev/cubefun
+Restart=always
+User=exedev
+
+[Install]
+WantedBy=multi-user.target
