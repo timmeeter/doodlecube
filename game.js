@@ -275,8 +275,8 @@ function startRoll(dir) {
   switch (dir) {
     case 'north': rollAxis.set(-1, 0, 0); break; // tip toward -Z
     case 'south': rollAxis.set(1, 0, 0); break;  // tip toward +Z  
-    case 'east':  rollAxis.set(0, 0, 1); break;   // tip toward +X
-    case 'west':  rollAxis.set(0, 0, -1); break;  // tip toward -X
+    case 'east':  rollAxis.set(0, 0, -1); break;  // tip toward +X
+    case 'west':  rollAxis.set(0, 0, 1); break;   // tip toward -X
   }
 
   cubeRow = nr;
