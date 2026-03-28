@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cube Fun</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a1a; }
+  canvas { display: block; }
+  #ui {
+    position: absolute; top: 16px; left: 16px; color: #bbb; font-family: 'Segoe UI', sans-serif;
+    font-size: 14px; pointer-events: none; user-select: none;
+  }
+  #ui h1 { font-size: 20px; color: #ddd; margin-bottom: 4px; font-weight: 300; letter-spacing: 2px; }
+  #ui p { opacity: 0.6; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>CUBE FUN</h1>
+  <p>Arrow keys / WASD to roll &middot; Roll through color pools to paint</p>
+</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>
