@@ -323,8 +323,9 @@ function updateRoll(dt) {
     cubePivot.rotation.set(0, 0, 0);
     cubeMesh.position.set(0, HALF, 0);
 
-    // Update face tracking
+    // Update face tracking and always refresh materials to match new orientation
     rotateFaceSlots(rollDir);
+    updateCubeMaterials();
 
     // Bottom face index (in the original face array)
     const bottomFace = getBottomFace();
