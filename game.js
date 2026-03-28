@@ -393,12 +393,13 @@ function updateRoll(dt) {
 }
 
 // ── Input ──────────────────────────────────────────────────
+// Keys mapped to isometric view: screen-up = northwest, screen-right = northeast, etc.
 window.addEventListener('keydown', (e) => {
   switch (e.key) {
-    case 'ArrowUp': case 'w': case 'W': startRoll('north'); break;
-    case 'ArrowDown': case 's': case 'S': startRoll('south'); break;
-    case 'ArrowRight': case 'd': case 'D': startRoll('east'); break;
-    case 'ArrowLeft': case 'a': case 'A': startRoll('west'); break;
+    case 'ArrowUp': case 'w': case 'W': startRoll('west'); break;
+    case 'ArrowDown': case 's': case 'S': startRoll('east'); break;
+    case 'ArrowRight': case 'd': case 'D': startRoll('north'); break;
+    case 'ArrowLeft': case 'a': case 'A': startRoll('south'); break;
   }
 });
 
@@ -416,9 +417,9 @@ window.addEventListener('touchend', (e) => {
   const adx = Math.abs(dx), ady = Math.abs(dy);
   if (Math.max(adx, ady) < 30) return; // too small
   if (adx > ady) {
-    startRoll(dx > 0 ? 'east' : 'west');
+    startRoll(dx > 0 ? 'north' : 'south');
   } else {
-    startRoll(dy > 0 ? 'south' : 'north');
+    startRoll(dy > 0 ? 'east' : 'west');
   }
   touchStart = null;
 });
