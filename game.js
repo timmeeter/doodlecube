@@ -137,14 +137,21 @@ const MAX_INK = 8;
 const faceColors = [null, null, null, null, null, null];
 const baseCubeColor = new THREE.Color(0xe8e0d0); // warm cream
 
+// Face orientation tracking:
+// faceSlots[i] = which original face index is now at geometric position i
+// Positions: 0=+X(right), 1=-X(left), 2=+Y(top), 3=-Y(bottom), 4=+Z(front), 5=-Z(back)
+let faceSlots = [0, 1, 2, 3, 4, 5];
+
 function makeCubeMaterials() {
-  return faceColors.map(fc => {
+  // Material[i] = geometric face position i, but the original face at
+  // that position is faceSlots[i]. Look up color by original face index.
+  return faceSlots.map(originalFace => {
+    const fc = faceColors[originalFace];
     if (fc === null) {
       return new THREE.MeshStandardMaterial({
         color: baseCubeColor.clone(), roughness: 0.6, metalness: 0.05,
       });
     }
-    // Ink strength: 1.0 at full, fading toward 0
     const strength = fc.ink / MAX_INK;
     const poolCol = new THREE.Color(COLORS[fc.colorIndex]);
     const c = baseCubeColor.clone().lerp(poolCol, strength);
@@ -168,11 +175,6 @@ cubeMesh.position.set(0, HALF, 0);
 // Cube grid position
 let cubeRow = 4, cubeCol = 4;
 cubePivot.position.set(cubeCol * TILE + HALF, 0, cubeRow * TILE + HALF);
-
-// Face orientation tracking:
-// faceSlots[i] = which original face index is now at position i
-// Positions: 0=+X(right), 1=-X(left), 2=+Y(top), 3=-Y(bottom), 4=+Z(front), 5=-Z(back)
-let faceSlots = [0, 1, 2, 3, 4, 5];
 
 // When cube rolls in a direction, faces rotate:
 function rotateFaceSlots(dir) {
