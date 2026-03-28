@@ -64,7 +64,8 @@ for (let r = 0; r < GRID; r++) {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(c * TILE + HALF, -0.075, r * TILE + HALF);
     tileGroup.add(mesh);
-    const tile = { mesh, baseColor: col.clone(), paintColor: null, row: r, col: c };
+    // paintColor: THREE.Color of accumulated paint, paintOpacity: 0..1 strength
+    const tile = { mesh, baseColor: col.clone(), paintColor: null, paintOpacity: 0, row: r, col: c };
     tiles.push(tile);
     tileMap[`${r},${c}`] = tile;
   }
@@ -131,17 +132,26 @@ poolPositions.forEach(({ r, c, color }) => {
 
 // ── Cube ───────────────────────────────────────────────────
 // Face order: +X, -X, +Y, -Y, +Z, -Z
-// We track color per face. null = no color (shows base white/cream)
+// Each face: null (clean) or { colorIndex, ink } where ink = remaining stamps
+const MAX_INK = 8;
 const faceColors = [null, null, null, null, null, null];
 const baseCubeColor = new THREE.Color(0xe8e0d0); // warm cream
 
 function makeCubeMaterials() {
   return faceColors.map(fc => {
-    const c = fc ? new THREE.Color(COLORS[fc]) : baseCubeColor.clone();
+    if (fc === null) {
+      return new THREE.MeshStandardMaterial({
+        color: baseCubeColor.clone(), roughness: 0.6, metalness: 0.05,
+      });
+    }
+    // Ink strength: 1.0 at full, fading toward 0
+    const strength = fc.ink / MAX_INK;
+    const poolCol = new THREE.Color(COLORS[fc.colorIndex]);
+    const c = baseCubeColor.clone().lerp(poolCol, strength);
     return new THREE.MeshStandardMaterial({
       color: c, roughness: 0.6, metalness: 0.05,
-      emissive: fc !== null ? new THREE.Color(COLORS[fc]) : new THREE.Color(0x000000),
-      emissiveIntensity: fc !== null ? 0.15 : 0,
+      emissive: poolCol,
+      emissiveIntensity: 0.15 * strength,
     });
   });
 }
@@ -314,31 +324,62 @@ function updateRoll(dt) {
     // Update face tracking
     rotateFaceSlots(rollDir);
 
-    // Check for color pool pickup (bottom face absorbs color)
+    // Bottom face index (in the original face array)
+    const bottomFace = getBottomFace();
+
+    // Check for color pool pickup — refills the bottom face to full ink, consumes pool
     const poolKey = `${cubeRow},${cubeCol}`;
     if (poolMap[poolKey]) {
       const pool = poolMap[poolKey];
-      const bottomFace = getBottomFace();
-      faceColors[bottomFace] = pool.colorIndex;
+      faceColors[bottomFace] = { colorIndex: pool.colorIndex, ink: MAX_INK };
       updateCubeMaterials();
+      // Remove pool from scene
+      scene.remove(pool.mesh);
+      scene.remove(pool.glowMesh);
+      pool.mesh.geometry.dispose();
+      pool.mesh.material.dispose();
+      pool.glowMesh.geometry.dispose();
+      pool.glowMesh.material.dispose();
+      delete poolMap[poolKey];
+      const idx = pools.indexOf(pool);
+      if (idx !== -1) pools.splice(idx, 1);
     }
 
-    // Paint tile if bottom face has color
-    const bottomFace = getBottomFace();
-    if (faceColors[bottomFace] !== null) {
+    // Paint tile if bottom face has ink remaining
+    const face = faceColors[bottomFace];
+    if (face !== null && face.ink > 0) {
       const tileKey = `${cubeRow},${cubeCol}`;
       const tile = tileMap[tileKey];
       if (tile) {
-        const paintCol = new THREE.Color(COLORS[faceColors[bottomFace]]);
-        if (tile.paintColor) {
-          tile.paintColor.lerp(paintCol, 0.5);
+        const stampStrength = face.ink / MAX_INK; // 1.0 at full, fading
+        const stampColor = new THREE.Color(COLORS[face.colorIndex]);
+
+        if (tile.paintColor === null) {
+          // Empty tile: stamp color at stamp strength
+          tile.paintColor = stampColor.clone();
+          tile.paintOpacity = stampStrength;
         } else {
-          tile.paintColor = paintCol.clone();
+          // Blend new stamp into existing paint
+          // Weight by relative opacity: existing vs incoming
+          const totalOpacity = tile.paintOpacity + stampStrength * (1 - tile.paintOpacity);
+          const existingWeight = tile.paintOpacity / totalOpacity;
+          const newWeight = 1 - existingWeight;
+          tile.paintColor.lerp(stampColor, newWeight);
+          tile.paintOpacity = Math.min(totalOpacity, 1.0);
         }
-        const final = tile.baseColor.clone().lerp(tile.paintColor, 0.65);
+
+        // Apply to mesh: lerp base tile color toward paint by paint opacity
+        const final = tile.baseColor.clone().lerp(tile.paintColor, tile.paintOpacity);
         tile.mesh.material.color.copy(final);
         tile.mesh.material.emissive.copy(tile.paintColor);
-        tile.mesh.material.emissiveIntensity = 0.08;
+        tile.mesh.material.emissiveIntensity = 0.1 * tile.paintOpacity;
+
+        // Consume ink and update cube face appearance
+        face.ink--;
+        if (face.ink <= 0) {
+          faceColors[bottomFace] = null; // fully spent
+        }
+        updateCubeMaterials();
       }
     }
 
