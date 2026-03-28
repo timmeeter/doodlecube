@@ -4,7 +4,7 @@ import * as THREE from 'three';
 const TILE = 3.0;
 const GRID = 10;
 const HALF = TILE / 2;
-const ROLL_DURATION = 0.28; // seconds per roll
+const ROLL_DURATION = 0.3; // seconds per roll
 const COLORS = [
   0xe06070, // rose
   0x60a0e0, // sky blue
@@ -204,17 +204,20 @@ function updateCubeMaterials() {
 }
 
 // ── Rolling Animation ──────────────────────────────────────
+// Strategy: use a separate "rollAnchor" group positioned at the bottom edge.
+// Parent the cubePivot under it, then just rotate the anchor.
+const rollAnchor = new THREE.Group();
+scene.add(rollAnchor);
+
 let rolling = false;
 let rollQueue = [];
 let rollTime = 0;
 let rollDir = null;
 let rollAxis = new THREE.Vector3();
-let rollEdge = new THREE.Vector3();
-let rollStartPos = new THREE.Vector3();
 
 function startRoll(dir) {
   if (rolling) {
-    if (rollQueue.length < 2) rollQueue.push(dir);
+    if (rollQueue.length < 3) rollQueue.push(dir);
     return;
   }
 
@@ -233,23 +236,47 @@ function startRoll(dir) {
   rolling = true;
   rollDir = dir;
   rollTime = 0;
-  rollStartPos.copy(cubePivot.position);
 
-  // Edge to rotate around (bottom edge in direction of movement)
-  const ex = dc * HALF;
-  const ez = dr * HALF;
-  rollEdge.set(
-    cubePivot.position.x + ex,
-    0,
-    cubePivot.position.z + ez
-  );
+  // The bottom edge in the direction of travel
+  const edgeX = cubePivot.position.x + dc * HALF;
+  const edgeZ = cubePivot.position.z + dr * HALF;
 
-  // Rotation axis (perpendicular to movement direction, horizontal)
+  // Place anchor at the bottom edge
+  rollAnchor.position.set(edgeX, 0, edgeZ);
+  rollAnchor.rotation.set(0, 0, 0);
+
+  // Reparent cubePivot under rollAnchor (adjust for anchor offset)
+  scene.remove(cubePivot);
+  rollAnchor.add(cubePivot);
+  cubePivot.position.set(-dc * HALF, 0, -dr * HALF);
+  cubePivot.rotation.set(0, 0, 0);
+  cubeMesh.position.set(0, HALF, 0);
+
+  // Rotation axis (perpendicular to movement, using right-hand rule)
+  // For north (dr=-1, -Z): cube tips forward, top falls toward -Z → rotate around +X
+  // Actually: "north" means row decreases (-Z in world). The top of the cube
+  // should tip toward -Z. Right-hand rule around X: +angle rotates Y toward Z,
+  // -angle rotates Y toward -Z. We want Y→-Z, so negative X rotation.
+  // But our anchor is at the -Z edge, so rotating the anchor by -π/2 around X
+  // will swing the cube center from above the edge to the -Z side. Let's verify:
+  // Cube center starts at (0, HALF, +HALF) relative to anchor (since anchor is at -Z edge).
+  // Rotating -90° around X: Y→+Z, Z→-Y. So (0, HALF, HALF) → (0, HALF→+Z=HALF, HALF→-Y=-HALF).
+  // Hmm no. Let's just think physically:
+  // Anchor is at the leading bottom edge. We need the cube to "fall forward" over that edge.
+  // That means the part of the cube above the anchor swings DOWN and FORWARD.
+  // The cube center is behind and above the anchor. It needs to end up in front and at same height.
+  //
+  // North (moving toward -Z): anchor at -Z edge of cube.
+  //   Cube center relative to anchor: (0, HALF, +HALF)
+  //   After 90° roll it should be at: (0, HALF, -HALF) but adjusted... actually (0, HALF, -HALF) from new anchor perspective.
+  //   We need (0, +HALF, +HALF) to rotate to (0, -HALF, +HALF)... no.
+  //   Let me just use: positive rotation around X takes +Y toward +Z.
+  //   We want +Y to go toward -Z, so NEGATIVE X rotation.
   switch (dir) {
-    case 'north': rollAxis.set(1, 0, 0); break;
-    case 'south': rollAxis.set(-1, 0, 0); break;
-    case 'east': rollAxis.set(0, 0, 1); break;
-    case 'west': rollAxis.set(0, 0, -1); break;
+    case 'north': rollAxis.set(-1, 0, 0); break; // tip toward -Z
+    case 'south': rollAxis.set(1, 0, 0); break;  // tip toward +Z  
+    case 'east':  rollAxis.set(0, 0, 1); break;   // tip toward +X
+    case 'west':  rollAxis.set(0, 0, -1); break;  // tip toward -X
   }
 
   cubeRow = nr;
@@ -264,19 +291,20 @@ function updateRoll(dt) {
   const s = t * t * (3 - 2 * t);
   const angle = s * Math.PI / 2;
 
-  // Reset pivot to start, then rotate around edge
-  cubePivot.position.copy(rollStartPos);
-  cubePivot.rotation.set(0, 0, 0);
-  cubeMesh.position.set(0, HALF, 0);
+  // Apply rotation to anchor
+  rollAnchor.rotation.set(
+    rollAxis.x * angle,
+    rollAxis.y * angle,
+    rollAxis.z * angle
+  );
 
-  // Translate so edge is at origin, rotate, translate back
-  cubePivot.position.sub(rollEdge);
-  const q = new THREE.Quaternion().setFromAxisAngle(rollAxis, angle);
-  cubePivot.position.applyQuaternion(q);
-  cubePivot.position.add(rollEdge);
-  cubePivot.quaternion.copy(q);
+
 
   if (t >= 1.0) {
+    // Unparent: put cubePivot back in scene
+    rollAnchor.remove(cubePivot);
+    scene.add(cubePivot);
+
     // Snap to grid
     rolling = false;
     cubePivot.position.set(cubeCol * TILE + HALF, 0, cubeRow * TILE + HALF);
@@ -303,12 +331,10 @@ function updateRoll(dt) {
       if (tile) {
         const paintCol = new THREE.Color(COLORS[faceColors[bottomFace]]);
         if (tile.paintColor) {
-          // Blend colors
           tile.paintColor.lerp(paintCol, 0.5);
         } else {
           tile.paintColor = paintCol.clone();
         }
-        // Mix paint with base for a chalky look
         const final = tile.baseColor.clone().lerp(tile.paintColor, 0.65);
         tile.mesh.material.color.copy(final);
         tile.mesh.material.emissive.copy(tile.paintColor);
