@@ -1,4 +1,4 @@
-# Cube Fun - Current Vision & Technical Plan
+# Doodle Cube - Current Vision & Technical Plan
 
 ## Original Vision
 A relaxing, meditative 3D "toy" game where the player controls a cube that rolls around a surface, picking up colors from pools and painting the ground. Think of it as a phone-doodling alternative - no competitive elements, just soft aesthetics and tactile satisfaction.

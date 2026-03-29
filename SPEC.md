@@ -1,4 +1,4 @@
-# Cube Doodle — Technical Specification
+# Doodle Cube — Technical Specification
 
 A relaxing browser-based 3D toy where you roll a cube across a grid, pick up colors from pools, and paint tiles. No score, no timer — just meditative doodling.
 
@@ -10,9 +10,9 @@ A relaxing browser-based 3D toy where you roll a cube across a grid, pick up col
 
 **Stack:** Three.js r164 (ES modules from jsdelivr CDN), vanilla JS, no framework.
 
-**Hosting:** `busybox httpd` on port 8000, managed by systemd (`cubefun.service`). Accessible at `https://cubedoodle.exe.xyz:8000/`.
+**Hosting:** `busybox httpd` on port 8000, managed by systemd (`cubefun.service`). Accessible at `https://doodlecube.exe.xyz:8000/`.
 
-**Repo:** `https://github.com/timmeeter/cubedoodle` (pushed via exe.dev GitHub integration).
+**Repo:** `https://github.com/timmeeter/doodlecube` (pushed via exe.dev GitHub integration).
 
 ## Scene Setup
 
