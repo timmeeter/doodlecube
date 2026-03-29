@@ -55,9 +55,9 @@ for (let r = 0; r < GRID; r++) {
     // Main tile face
     const geo = new THREE.BoxGeometry(TILE - 0.08, 0.15, TILE - 0.08);
     let col = chalkyGreen.clone();
-    // Corner markers
+    // Corner markers: (0,0) = reset (green), (9,9) = mode toggle (amber)
     if (r === 0 && c === 0) col.set(0x40b040);
-    if (r === GRID - 1 && c === GRID - 1) col.set(0xc0c040);
+    if (r === GRID - 1 && c === GRID - 1) col.set(0xd0a030);
     const mat = new THREE.MeshStandardMaterial({
       color: col, roughness: 0.85, metalness: 0.0,
     });
@@ -91,10 +91,22 @@ const NUM_POOLS = 10;
 const pools = []; // { r, c, colorIndex, mesh, glowMesh }
 const poolMap = {}; // "r,c" -> pool
 
-// Generate random non-overlapping positions (avoid cube start at 5,5)
+// Game mode: 'stamp' (paint tiles) or 'pickup' (absorb tile color)
+let gameMode = 'stamp';
+
+function updateModeIndicator() {
+  const el = document.getElementById('cam-info');
+  if (el) el.textContent = gameMode === 'stamp'
+    ? '🎨 Stamp mode — roll over pools, paint the board'
+    : '🧹 Pickup mode — clearing tiles, absorbing color';
+}
+
+// Generate random non-overlapping positions (avoid cube start, corners)
 function randomPoolPositions(count) {
   const used = new Set();
-  used.add('5,5'); // cube start
+  used.add('4,4'); // cube start
+  used.add('0,0'); // reset corner
+  used.add(`${GRID-1},${GRID-1}`); // mode-toggle corner
   const result = [];
   while (result.length < count) {
     const r = Math.floor(Math.random() * GRID);
@@ -107,9 +119,8 @@ function randomPoolPositions(count) {
   return result;
 }
 
-randomPoolPositions(NUM_POOLS).forEach(({ r, c, color }) => {
-  const poolColor = new THREE.Color(COLORS[color]);
-  // Pool disc
+function spawnPool(r, c, colorIndex) {
+  const poolColor = new THREE.Color(COLORS[colorIndex]);
   const geo = new THREE.CylinderGeometry(TILE * 0.38, TILE * 0.38, 0.06, 32);
   const mat = new THREE.MeshStandardMaterial({
     color: poolColor, roughness: 0.4, metalness: 0.1,
@@ -119,7 +130,6 @@ randomPoolPositions(NUM_POOLS).forEach(({ r, c, color }) => {
   mesh.position.set(c * TILE + HALF, 0.03, r * TILE + HALF);
   scene.add(mesh);
 
-  // Glow ring
   const glowGeo = new THREE.RingGeometry(TILE * 0.35, TILE * 0.45, 32);
   const glowMat = new THREE.MeshBasicMaterial({
     color: poolColor, transparent: true, opacity: 0.2, side: THREE.DoubleSide,
@@ -129,10 +139,58 @@ randomPoolPositions(NUM_POOLS).forEach(({ r, c, color }) => {
   glowMesh.position.set(c * TILE + HALF, 0.02, r * TILE + HALF);
   scene.add(glowMesh);
 
-  const pool = { r, c, colorIndex: color, mesh, glowMesh };
+  const pool = { r, c, colorIndex, mesh, glowMesh };
   pools.push(pool);
   poolMap[`${r},${c}`] = pool;
-});
+}
+
+function removeAllPools() {
+  for (const pool of pools) {
+    scene.remove(pool.mesh);
+    scene.remove(pool.glowMesh);
+    pool.mesh.geometry.dispose();
+    pool.mesh.material.dispose();
+    pool.glowMesh.geometry.dispose();
+    pool.glowMesh.material.dispose();
+  }
+  pools.length = 0;
+  for (const key in poolMap) delete poolMap[key];
+}
+
+function spawnRandomPools() {
+  removeAllPools();
+  randomPoolPositions(NUM_POOLS).forEach(p => spawnPool(p.r, p.c, p.color));
+}
+
+function resetBoard() {
+  // Clear all tile paint
+  for (const tile of tiles) {
+    tile.paintColor = null;
+    tile.paintOpacity = 0;
+    tile.mesh.material.color.copy(tile.baseColor);
+    tile.mesh.material.emissive.setHex(0x000000);
+    tile.mesh.material.emissiveIntensity = 0;
+  }
+  // Reset cube faces
+  for (let i = 0; i < 6; i++) faceColors[i] = null;
+  faceSlots = [0, 1, 2, 3, 4, 5];
+  updateCubeMaterials();
+  // Move cube to center
+  cubeRow = 4; cubeCol = 4;
+  cubePivot.position.set(cubeCol * TILE + HALF, 0, cubeRow * TILE + HALF);
+  cubePivot.rotation.set(0, 0, 0);
+  cubeMesh.position.set(0, HALF, 0);
+  // Reset mode to stamp
+  gameMode = 'stamp';
+  updateModeIndicator();
+  // Spawn fresh pools
+  spawnRandomPools();
+  // Clear input queue
+  rollQueue = [];
+}
+
+// Initial pool spawn
+spawnRandomPools();
 
 // ── Cube ───────────────────────────────────────────────────
 // Face order: +X, -X, +Y, -Y, +Z, -Z
@@ -352,7 +410,47 @@ function updateRoll(dt) {
       if (idx !== -1) pools.splice(idx, 1);
     }
 
-    // Paint tile if bottom face has ink remaining
+    // Check for special corner tiles
+    if (cubeRow === 0 && cubeCol === 0) {
+      // Reset corner — clear board and respawn pools
+      resetBoard();
+      if (rollQueue.length > 0) startRoll(rollQueue.shift());
+      return;
+    }
+    if (cubeRow === GRID - 1 && cubeCol === GRID - 1) {
+      // Mode toggle corner
+      gameMode = gameMode === 'stamp' ? 'pickup' : 'stamp';
+      updateModeIndicator();
+    }
+
+    // PICKUP MODE: absorb tile color into bottom face, clear tile
+    if (gameMode === 'pickup') {
+      const tileKey = `${cubeRow},${cubeCol}`;
+      const tile = tileMap[tileKey];
+      if (tile && tile.paintColor !== null && tile.paintOpacity > 0) {
+        // Find closest COLORS index to tile's paint color
+        let bestIdx = 0, bestDist = Infinity;
+        for (let i = 0; i < COLORS.length; i++) {
+          const cc = new THREE.Color(COLORS[i]);
+          const dist = tile.paintColor.distanceTo(cc);
+          if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+        }
+        // Give bottom face some ink based on tile opacity
+        const pickedInk = Math.max(1, Math.round(tile.paintOpacity * MAX_INK));
+        faceColors[bottomFace] = { colorIndex: bestIdx, ink: pickedInk };
+        // Clear tile
+        tile.paintColor = null;
+        tile.paintOpacity = 0;
+        tile.mesh.material.color.copy(tile.baseColor);
+        tile.mesh.material.emissive.setHex(0x000000);
+        tile.mesh.material.emissiveIntensity = 0;
+        updateCubeMaterials();
+      }
+      if (rollQueue.length > 0) startRoll(rollQueue.shift());
+      return;
+    }
+
+    // STAMP MODE: paint tile if bottom face has ink remaining
     const face = faceColors[bottomFace];
     if (face !== null && face.ink > 0) {
       const tileKey = `${cubeRow},${cubeCol}`;
