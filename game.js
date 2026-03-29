@@ -463,16 +463,34 @@ function updateRoll(dt) {
       const tileKey = `${cubeRow},${cubeCol}`;
       const tile = tileMap[tileKey];
       if (tile && tile.paintColor !== null && tile.paintOpacity > 0) {
-        // Find closest COLORS index to tile's paint color
+        // Find closest COLORS index to tile's current paint
         let bestIdx = 0, bestDist = Infinity;
         for (let i = 0; i < COLORS.length; i++) {
-          const cc = new THREE.Color(COLORS[i]);
-          const dist = tile.paintColor.distanceTo(cc);
+          const dist = tile.paintColor.distanceTo(new THREE.Color(COLORS[i]));
           if (dist < bestDist) { bestDist = dist; bestIdx = i; }
         }
-        // Give bottom face some ink based on tile opacity
         const pickedInk = Math.max(1, Math.round(tile.paintOpacity * MAX_INK));
-        faceColors[bottomFace] = { colorIndex: bestIdx, ink: pickedInk };
+
+        const existing = faceColors[bottomFace];
+        if (existing === null) {
+          // Empty face — just take the tile color
+          faceColors[bottomFace] = { colorIndex: bestIdx, ink: pickedInk };
+        } else {
+          // Blend: mix existing face color with picked-up tile color
+          const totalInk = Math.min(existing.ink + pickedInk, MAX_INK);
+          const existingCol = new THREE.Color(COLORS[existing.colorIndex]);
+          const pickedCol = new THREE.Color(COLORS[bestIdx]);
+          const weight = pickedInk / (existing.ink + pickedInk);
+          existingCol.lerp(pickedCol, weight);
+          // Find closest palette color to the blend
+          let blendIdx = 0, blendDist = Infinity;
+          for (let i = 0; i < COLORS.length; i++) {
+            const dist = existingCol.distanceTo(new THREE.Color(COLORS[i]));
+            if (dist < blendDist) { blendDist = dist; blendIdx = i; }
+          }
+          faceColors[bottomFace] = { colorIndex: blendIdx, ink: totalInk };
+        }
+
         // Clear tile
         tile.paintColor = null;
         tile.paintOpacity = 0;
