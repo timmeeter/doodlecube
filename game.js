@@ -91,22 +91,42 @@ function placeCornerIcon(r, c, svgString) {
   return icon;
 }
 
+function updateCornerIcon(icon, svgString) {
+  const oldTex = icon.material.map;
+  icon.material.map = svgToTexture(svgString);
+  icon.material.needsUpdate = true;
+  if (oldTex) oldTex.dispose();
+}
+
+// Chalky pastel green for icons
+const iconColor = '#8ab07a';
+
 // Reset icon: circular arrow (↻)
 const resetSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <path d="M50 20 A30 30 0 1 1 22 40" fill="none" stroke="white" stroke-width="7" stroke-linecap="round"/>
-  <polygon points="28,22 18,42 34,42" fill="white"/>
+  <path d="M50 20 A30 30 0 1 1 22 40" fill="none" stroke="${iconColor}" stroke-width="7" stroke-linecap="round"/>
+  <polygon points="28,22 18,42 34,42" fill="${iconColor}"/>
 </svg>`;
 placeCornerIcon(0, 0, resetSvg);
 
-// Mode toggle icon: brush + eraser
-const modeSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <path d="M30 70 L55 25 L68 35 L43 80 Z" fill="white" opacity="0.9"/>
-  <path d="M43 80 L30 70 L25 78 Q22 85 30 85 L40 85 Z" fill="white"/>
-  <circle cx="60" cy="65" r="3" fill="white" opacity="0.6"/>
-  <circle cx="70" cy="55" r="2.5" fill="white" opacity="0.5"/>
-  <circle cx="65" cy="45" r="2" fill="white" opacity="0.4"/>
+// Stamp icon: ink stamp pressing down
+const stampSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect x="35" y="18" width="30" height="8" rx="3" fill="${iconColor}"/>
+  <rect x="43" y="26" width="14" height="24" rx="2" fill="${iconColor}"/>
+  <rect x="30" y="50" width="40" height="12" rx="3" fill="${iconColor}"/>
+  <rect x="22" y="66" width="56" height="6" rx="2" fill="${iconColor}"/>
+  <rect x="20" y="74" width="60" height="4" rx="1" fill="${iconColor}" opacity="0.5"/>
 </svg>`;
-placeCornerIcon(GRID - 1, GRID - 1, modeSvg);
+
+// Broom icon: angled broom sweeping
+const broomSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <line x1="65" y1="15" x2="40" y2="55" stroke="${iconColor}" stroke-width="5" stroke-linecap="round"/>
+  <path d="M28 52 L52 52 L48 80 Q40 88 32 80 Z" fill="${iconColor}"/>
+  <line x1="33" y1="60" x2="35" y2="75" stroke="${iconColor}" stroke-width="2" opacity="0.4"/>
+  <line x1="40" y1="58" x2="40" y2="78" stroke="${iconColor}" stroke-width="2" opacity="0.4"/>
+  <line x1="47" y1="58" x2="45" y2="75" stroke="${iconColor}" stroke-width="2" opacity="0.4"/>
+</svg>`;
+
+const modeIcon = placeCornerIcon(GRID - 1, GRID - 1, stampSvg);
 
 // Thin border lines between tiles
 const borderMat = new THREE.MeshStandardMaterial({ color: tileBorderColor, roughness: 0.9 });
@@ -136,6 +156,9 @@ function updateModeIndicator() {
   if (el) el.textContent = gameMode === 'stamp'
     ? '🎨 Stamp mode — roll over pools, paint the board'
     : '🧹 Pickup mode — clearing tiles, absorbing color';
+  if (typeof modeIcon !== 'undefined') {
+    updateCornerIcon(modeIcon, gameMode === 'stamp' ? stampSvg : broomSvg);
+  }
 }
 
 // Generate random non-overlapping positions (avoid cube start, corners)
