@@ -227,6 +227,7 @@ function resetBoard() {
 // Initial pool spawn
 spawnRandomPools();
 
+
 // ── Cube ───────────────────────────────────────────────────
 // Face order: +X, -X, +Y, -Y, +Z, -Z
 // Each face: null (clean) or { colorIndex, ink } where ink = remaining stamps
@@ -426,7 +427,6 @@ function updateRoll(dt) {
 
     // Bottom face index (in the original face array)
     const bottomFace = getBottomFace();
-
     // Check for color pool pickup — refills the bottom face to full ink, consumes pool
     const poolKey = `${cubeRow},${cubeCol}`;
     if (poolMap[poolKey]) {
