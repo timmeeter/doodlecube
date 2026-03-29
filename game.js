@@ -459,6 +459,10 @@ function updateRoll(dt) {
     }
 
     // PICKUP MODE: absorb tile color into bottom face, clear tile
+    // Color distance helper (THREE.Color has no distanceTo)
+    function colorDist(a, b) {
+      return Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2);
+    }
     if (gameMode === 'pickup') {
       const tileKey = `${cubeRow},${cubeCol}`;
       const tile = tileMap[tileKey];
@@ -466,7 +470,7 @@ function updateRoll(dt) {
         // Find closest COLORS index to tile's current paint
         let bestIdx = 0, bestDist = Infinity;
         for (let i = 0; i < COLORS.length; i++) {
-          const dist = tile.paintColor.distanceTo(new THREE.Color(COLORS[i]));
+          const dist = colorDist(tile.paintColor, new THREE.Color(COLORS[i]));
           if (dist < bestDist) { bestDist = dist; bestIdx = i; }
         }
         const pickedInk = Math.max(1, Math.round(tile.paintOpacity * MAX_INK));
@@ -485,7 +489,7 @@ function updateRoll(dt) {
           // Find closest palette color to the blend
           let blendIdx = 0, blendDist = Infinity;
           for (let i = 0; i < COLORS.length; i++) {
-            const dist = existingCol.distanceTo(new THREE.Color(COLORS[i]));
+            const dist = colorDist(existingCol, new THREE.Color(COLORS[i]));
             if (dist < blendDist) { blendDist = dist; blendIdx = i; }
           }
           faceColors[bottomFace] = { colorIndex: blendIdx, ink: totalInk };
