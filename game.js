@@ -18,9 +18,9 @@ const COLORS = [
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a1e);
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
-camera.position.set(28, 32, 28);
-camera.lookAt(GRID * TILE / 2, 0, GRID * TILE / 2);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(31.7, 32, 22.8);
+camera.lookAt(GRID * TILE / 2 + 3, 0, GRID * TILE / 2 + 1.5);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -87,23 +87,27 @@ for (let c = 0; c <= GRID; c++) {
 }
 
 // ── Color Pools ────────────────────────────────────────────
-const poolPositions = [
-  { r: 1, c: 2, color: 0 },
-  { r: 3, c: 7, color: 1 },
-  { r: 7, c: 1, color: 2 },
-  { r: 8, c: 8, color: 3 },
-  { r: 2, c: 5, color: 4 },
-  { r: 6, c: 4, color: 5 },
-  { r: 5, c: 9, color: 0 },
-  { r: 9, c: 3, color: 1 },
-  { r: 0, c: 8, color: 2 },
-  { r: 4, c: 0, color: 3 },
-];
-
+const NUM_POOLS = 10;
 const pools = []; // { r, c, colorIndex, mesh, glowMesh }
 const poolMap = {}; // "r,c" -> pool
 
-poolPositions.forEach(({ r, c, color }) => {
+// Generate random non-overlapping positions (avoid cube start at 5,5)
+function randomPoolPositions(count) {
+  const used = new Set();
+  used.add('5,5'); // cube start
+  const result = [];
+  while (result.length < count) {
+    const r = Math.floor(Math.random() * GRID);
+    const c = Math.floor(Math.random() * GRID);
+    const key = `${r},${c}`;
+    if (used.has(key)) continue;
+    used.add(key);
+    result.push({ r, c, color: result.length % COLORS.length });
+  }
+  return result;
+}
+
+randomPoolPositions(NUM_POOLS).forEach(({ r, c, color }) => {
   const poolColor = new THREE.Color(COLORS[color]);
   // Pool disc
   const geo = new THREE.CylinderGeometry(TILE * 0.38, TILE * 0.38, 0.06, 32);
@@ -393,6 +397,22 @@ function updateRoll(dt) {
   }
 }
 
+// ── Camera orbit (temporary – Q/E to rotate, angle shown in console) ───
+let camAngle = Math.atan2(camera.position.z - GRID*TILE/2, camera.position.x - GRID*TILE/2);
+const camRadius = Math.sqrt((camera.position.x - GRID*TILE/2)**2 + (camera.position.z - GRID*TILE/2)**2);
+const camY = camera.position.y;
+function orbitCamera(delta) {
+  camAngle += delta;
+  const cx = GRID*TILE/2 + camRadius * Math.cos(camAngle);
+  const cz = GRID*TILE/2 + camRadius * Math.sin(camAngle);
+  camera.position.set(cx, camY, cz);
+  camera.lookAt(GRID*TILE/2 + 3, 0, GRID*TILE/2 + 1.5);
+  const deg = (camAngle * 180 / Math.PI).toFixed(1);
+  console.log(`Camera angle: ${deg}°  position: (${cx.toFixed(1)}, ${camY}, ${cz.toFixed(1)})`);
+  const el = document.getElementById('cam-info');
+  if (el) el.textContent = `Camera angle: ${deg}° — position: (${cx.toFixed(1)}, ${camY}, ${cz.toFixed(1)}) — Q/E to rotate`;
+}
+
 // ── Input ──────────────────────────────────────────────────
 // Keys mapped to isometric view: screen-up = northwest, screen-right = northeast, etc.
 window.addEventListener('keydown', (e) => {
@@ -401,6 +421,8 @@ window.addEventListener('keydown', (e) => {
     case 'ArrowDown': case 's': case 'S': startRoll('east'); break;
     case 'ArrowRight': case 'd': case 'D': startRoll('north'); break;
     case 'ArrowLeft': case 'a': case 'A': startRoll('south'); break;
+    case 'q': case 'Q': orbitCamera(0.05); break;
+    case 'e': case 'E': orbitCamera(-0.05); break;
   }
 });
 
