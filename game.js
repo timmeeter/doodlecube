@@ -71,6 +71,43 @@ for (let r = 0; r < GRID; r++) {
   }
 }
 
+// ── Corner tile icons (SVG textures) ──────────────────────
+function svgToTexture(svgString, size = 256) {
+  const blob = new Blob([svgString], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const tex = new THREE.TextureLoader().load(url, () => URL.revokeObjectURL(url));
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function placeCornerIcon(r, c, svgString) {
+  const tex = svgToTexture(svgString);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+  const geo = new THREE.PlaneGeometry(TILE * 0.65, TILE * 0.65);
+  const icon = new THREE.Mesh(geo, mat);
+  icon.rotation.x = -Math.PI / 2;
+  icon.position.set(c * TILE + HALF, 0.01, r * TILE + HALF);
+  scene.add(icon);
+  return icon;
+}
+
+// Reset icon: circular arrow (↻)
+const resetSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <path d="M50 20 A30 30 0 1 1 22 40" fill="none" stroke="white" stroke-width="7" stroke-linecap="round"/>
+  <polygon points="28,22 18,42 34,42" fill="white"/>
+</svg>`;
+placeCornerIcon(0, 0, resetSvg);
+
+// Mode toggle icon: brush + eraser
+const modeSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <path d="M30 70 L55 25 L68 35 L43 80 Z" fill="white" opacity="0.9"/>
+  <path d="M43 80 L30 70 L25 78 Q22 85 30 85 L40 85 Z" fill="white"/>
+  <circle cx="60" cy="65" r="3" fill="white" opacity="0.6"/>
+  <circle cx="70" cy="55" r="2.5" fill="white" opacity="0.5"/>
+  <circle cx="65" cy="45" r="2" fill="white" opacity="0.4"/>
+</svg>`;
+placeCornerIcon(GRID - 1, GRID - 1, modeSvg);
+
 // Thin border lines between tiles
 const borderMat = new THREE.MeshStandardMaterial({ color: tileBorderColor, roughness: 0.9 });
 for (let r = 0; r <= GRID; r++) {
@@ -175,9 +212,7 @@ function resetBoard() {
   for (let i = 0; i < 6; i++) faceColors[i] = null;
   faceSlots = [0, 1, 2, 3, 4, 5];
   updateCubeMaterials();
-  // Move cube to center
-  cubeRow = 4; cubeCol = 4;
-  cubePivot.position.set(cubeCol * TILE + HALF, 0, cubeRow * TILE + HALF);
+  // Keep cube where it is (on the reset tile)
   cubePivot.rotation.set(0, 0, 0);
   cubeMesh.position.set(0, HALF, 0);
   // Reset mode to stamp
